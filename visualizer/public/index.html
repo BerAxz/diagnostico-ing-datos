@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GitHub Method Words Visualizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Arial, sans-serif;
+      }
+      body {
+        margin: 0;
+        background: #f6f7fb;
+        color: #1f2937;
+      }
+      .container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      h1 {
+        margin: 0 0 12px;
+      }
+      .controls {
+        background: #ffffff;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+      }
+      .card {
+        background: #ffffff;
+        border-radius: 8px;
+        padding: 12px;
+      }
+      .chart-area {
+        height: 280px;
+      }
+      canvas {
+        width: 100%;
+        height: 100%;
+      }
+      .legend-list {
+        margin-top: 10px;
+        max-height: 140px;
+        overflow-y: auto;
+        border-top: 1px solid #e5e7eb;
+        padding-top: 8px;
+        font-size: 12px;
+        line-height: 1.35;
+      }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+      .legend-color {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        flex: 0 0 auto;
+      }
+      @media (max-width: 900px) {
+        .cards {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Ranking de palabras en métodos/funciones</h1>
+      <div class="controls">
+        <label for="topN">Top N:</label>
+        <input id="topN" type="number" min="1" value="20" />
+        <button id="applyTopN">Aplicar</button>
+      </div>
+
+      <div class="cards">
+        <div class="card">
+          <h3>Total</h3>
+          <div class="chart-area">
+            <canvas id="totalChart"></canvas>
+          </div>
+          <div id="totalLegend" class="legend-list"></div>
+        </div>
+        <div class="card">
+          <h3>Python</h3>
+          <div class="chart-area">
+            <canvas id="pythonChart"></canvas>
+          </div>
+          <div id="pythonLegend" class="legend-list"></div>
+        </div>
+        <div class="card">
+          <h3>Java</h3>
+          <div class="chart-area">
+            <canvas id="javaChart"></canvas>
+          </div>
+          <div id="javaLegend" class="legend-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

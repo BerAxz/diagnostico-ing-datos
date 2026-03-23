@@ -1,0 +1,15 @@
+{
+  "name": "github-method-words-visualizer",
+  "version": "1.0.0",
+  "description": "Realtime visualizer for GitHub method/function words",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "redis": "^4.7.0",
+    "socket.io": "^4.8.1"
+  }
+}

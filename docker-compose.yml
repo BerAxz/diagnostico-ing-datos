@@ -1,0 +1,35 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: github-word-redis
+    ports:
+      - "6379:6379"
+
+  miner:
+    build:
+      context: .
+      dockerfile: miner/Dockerfile
+    container_name: github-word-miner
+    depends_on:
+      - redis
+    environment:
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_CHANNEL: miner_words
+
+  visualizer:
+    build:
+      context: .
+      dockerfile: visualizer/Dockerfile
+    container_name: github-word-visualizer
+    depends_on:
+      - redis
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_CHANNEL: miner_words
+      PORT: 3000
+      TOP_N: 20
+    ports:
+      - "3000:3000"
