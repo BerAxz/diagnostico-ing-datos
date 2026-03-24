@@ -1,10 +1,37 @@
-const topNInput = document.getElementById('topN');
+// ─────────────────────────────────────────────
+// DOM references
+// ─────────────────────────────────────────────
+const topNInput   = document.getElementById('topN');
 const applyButton = document.getElementById('applyTopN');
+const statusBadge = document.getElementById('statusBadge');
 
-const socket = io({
-  query: { topN: topNInput.value || '20' },
+// ─────────────────────────────────────────────
+// Socket.IO  (sin pasar topN en query — lo
+// enviamos como evento una vez conectados)
+// ─────────────────────────────────────────────
+const socket = io({ reconnectionDelay: 2000, reconnectionAttempts: Infinity });
+
+socket.on('connect', () => {
+  setStatus('connected', 'Conectado');
+  // Al (re)conectar, le enviamos el topN actual para que el servidor
+  // devuelva el ranking correcto desde el primer mensaje.
+  emitTopN();
 });
 
+socket.on('disconnect', () => setStatus('disconnected', 'Desconectado'));
+socket.on('connect_error', () => setStatus('disconnected', 'Error de conexión'));
+
+// ─────────────────────────────────────────────
+// Status badge helper
+// ─────────────────────────────────────────────
+function setStatus(state, text) {
+  statusBadge.textContent = text;
+  statusBadge.className = state; // 'connected' | 'disconnected' | ''
+}
+
+// ─────────────────────────────────────────────
+// Colores
+// ─────────────────────────────────────────────
 const COLOR_PALETTE = [
   'rgba(59, 130, 246, 0.75)',
   'rgba(16, 185, 129, 0.75)',
@@ -19,56 +46,85 @@ const COLOR_PALETTE = [
 ];
 
 function buildColors(size) {
-  return Array.from({ length: size }, (_, idx) => COLOR_PALETTE[idx % COLOR_PALETTE.length]);
+  return Array.from({ length: size }, (_, i) => COLOR_PALETTE[i % COLOR_PALETTE.length]);
 }
 
+// ─────────────────────────────────────────────
+// Charts
+// ─────────────────────────────────────────────
 function createChart(canvasId) {
   const ctx = document.getElementById(canvasId).getContext('2d');
   return new Chart(ctx, {
     type: 'doughnut',
     data: {
       labels: [],
-      datasets: [
-        {
-          label: 'Cantidad',
-          data: [],
-          backgroundColor: [],
-          borderColor: '#ffffff',
-          borderWidth: 1,
-        },
-      ],
+      datasets: [{
+        label: 'Cantidad',
+        data: [],
+        backgroundColor: [],
+        borderColor: '#ffffff',
+        borderWidth: 1,
+      }],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       animation: false,
-      plugins: {
-        legend: {
-          display: false,
-        },
-      },
+      plugins: { legend: { display: false } },
     },
   });
 }
 
-const totalChart = createChart('totalChart');
-const pythonChart = createChart('pythonChart');
-const javaChart = createChart('javaChart');
+const charts = {
+  total:  createChart('totalChart'),
+  python: createChart('pythonChart'),
+  java:   createChart('javaChart'),
+};
 
-const totalLegend = document.getElementById('totalLegend');
-const pythonLegend = document.getElementById('pythonLegend');
-const javaLegend = document.getElementById('javaLegend');
+const legends = {
+  total:  document.getElementById('totalLegend'),
+  python: document.getElementById('pythonLegend'),
+  java:   document.getElementById('javaLegend'),
+};
 
+const empties = {
+  total:  document.getElementById('totalEmpty'),
+  python: document.getElementById('pythonEmpty'),
+  java:   document.getElementById('javaEmpty'),
+};
+
+// ─────────────────────────────────────────────
+// Render helpers
+// ─────────────────────────────────────────────
 function renderLegend(container, labels, colors, values) {
-  const rows = labels.map((label, idx) => {
-    const color = colors[idx] || 'rgba(107, 114, 128, 0.75)';
-    const value = values[idx] || 0;
-    return `<div class="legend-item"><span class="legend-color" style="background:${color}"></span><span>${label}: ${value}</span></div>`;
-  });
-  container.innerHTML = rows.join('');
+  container.innerHTML = labels
+    .map((label, i) => {
+      const color = colors[i] || 'rgba(107,114,128,0.75)';
+      return `<div class="legend-item">
+        <span class="legend-color" style="background:${color}"></span>
+        <span>${label}: ${values[i] ?? 0}</span>
+      </div>`;
+    })
+    .join('');
 }
 
-function updateChart(chart, legendContainer, items) {
+function updateChart(key, items) {
+  const chart  = charts[key];
+  const legend = legends[key];
+  const empty  = empties[key];
+
+  const hasData = items && items.length > 0;
+  empty.style.display = hasData ? 'none' : 'flex';
+
+  if (!hasData) {
+    chart.data.labels = [];
+    chart.data.datasets[0].data = [];
+    chart.data.datasets[0].backgroundColor = [];
+    chart.update();
+    legend.innerHTML = '';
+    return;
+  }
+
   const labels = items.map((item) => item.word);
   const values = items.map((item) => item.count);
   const colors = buildColors(items.length);
@@ -77,17 +133,41 @@ function updateChart(chart, legendContainer, items) {
   chart.data.datasets[0].data = values;
   chart.data.datasets[0].backgroundColor = colors;
   chart.update();
-  renderLegend(legendContainer, labels, colors, values);
+  renderLegend(legend, labels, colors, values);
 }
 
+// ─────────────────────────────────────────────
+// Incoming ranking updates
+// ─────────────────────────────────────────────
 socket.on('ranking:update', (payload) => {
-  updateChart(totalChart, totalLegend, payload.total || []);
-  updateChart(pythonChart, pythonLegend, payload.python || []);
-  updateChart(javaChart, javaLegend, payload.java || []);
+  updateChart('total',  payload.total  || []);
+  updateChart('python', payload.python || []);
+  updateChart('java',   payload.java   || []);
 });
 
-applyButton.addEventListener('click', () => {
+// ─────────────────────────────────────────────
+// Top-N control
+// ─────────────────────────────────────────────
+function getTopN() {
   const value = Number(topNInput.value);
-  const topN = Number.isFinite(value) && value > 0 ? value : 20;
-  socket.emit('ranking:setTopN', topN);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 20;
+}
+
+function emitTopN() {
+  socket.emit('ranking:setTopN', getTopN());
+}
+
+applyButton.addEventListener('click', () => {
+  // Validación básica antes de enviar
+  const n = getTopN();
+  topNInput.value = n;           // normaliza el valor en el input
+  applyButton.disabled = true;
+  socket.emit('ranking:setTopN', n);
+  // Re-habilitar el botón tras un breve instante
+  setTimeout(() => { applyButton.disabled = false; }, 500);
+});
+
+// Enviar también al presionar Enter dentro del input
+topNInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') applyButton.click();
 });
